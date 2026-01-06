@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNBA Thailand 2026 - Campaign Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background: #030712; }
+        .gradient-text { background: linear-gradient(to right, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script>
+        const { useState } = React;
+        const { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ComposedChart, Area, PieChart, Pie, Cell, ReferenceLine } = Recharts;
+
+        // Campaign Data
+        const dailyData = [
+            { date: 'Dec 22', spend: 113, purchases: 4, cpa: 28 },
+            { date: 'Dec 23', spend: 109, purchases: 0, cpa: 0 },
+            { date: 'Dec 24', spend: 112, purchases: 3, cpa: 37 },
+            { date: 'Dec 25', spend: 104, purchases: 1, cpa: 104 },
+            { date: 'Dec 26', spend: 100, purchases: 2, cpa: 50 },
+            { date: 'Dec 27', spend: 109, purchases: 0, cpa: 0 },
+            { date: 'Dec 28', spend: 115, purchases: 0, cpa: 0 },
+            { date: 'Dec 29', spend: 111, purchases: 0, cpa: 0 },
+            { date: 'Dec 30', spend: 109, purchases: 0, cpa: 0 },
+            { date: 'Dec 31', spend: 105, purchases: 0, cpa: 0 },
+            { date: 'Jan 1', spend: 109, purchases: 0, cpa: 0 },
+            { date: 'Jan 2', spend: 86, purchases: 1, cpa: 86 },
+            { date: 'Jan 3', spend: 65, purchases: 0, cpa: 0 },
+            { date: 'Jan 4', spend: 125, purchases: 0, cpa: 0 },
+            { date: 'Jan 5', spend: 746, purchases: 4, cpa: 186 },
+            { date: 'Jan 6', spend: 713, purchases: 5, cpa: 143 },
+        ];
+
+        const metaVsActual = [
+            { date: 'Jan 5', meta: 4, actual: 7 },
+            { date: 'Jan 6', meta: 5, actual: 9 },
+        ];
+
+        const platformData = [
+            { name: 'Facebook', spend: 6311, purchases: 134, cpa: 47, color: '#1877F2' },
+            { name: 'Instagram', spend: 16153, purchases: 212, cpa: 76, color: '#E4405F' },
+        ];
+
+        const geoData = [
+            { country: 'UK', cpa: 41 },
+            { country: 'Australia', cpa: 65 },
+            { country: 'Thailand', cpa: 168 },
+            { country: 'NZ', cpa: 159 },
+            { country: 'Spain', cpa: 168 },
+        ];
+
+        const spendVsRevenue = [
+            { date: 'Jan 5', spend: 746, revenue: 1387 },
+            { date: 'Jan 6', spend: 713, revenue: 1497 },
+        ];
+
+        function Dashboard() {
+            const [activeTab, setActiveTab] = useState('overview');
+
+            const tabs = ['overview', 'attribution', 'platforms', 'geo'];
+
+            return React.createElement('div', { className: 'min-h-screen bg-gray-950 text-white p-4' },
+                // Header
+                React.createElement('div', { className: 'mb-6' },
+                    React.createElement('div', { className: 'flex items-center justify-between mb-4' },
+                        React.createElement('div', null,
+                            React.createElement('h1', { className: 'text-2xl font-bold gradient-text' }, '🎧 DNBA Thailand 2026'),
+                            React.createElement('p', { className: 'text-gray-400 text-sm' }, 'Campaign Analytics')
+                        ),
+                        React.createElement('div', { className: 'text-right' },
+                            React.createElement('div', { className: 'text-3xl font-bold text-orange-500' }, '17'),
+                            React.createElement('div', { className: 'text-gray-400 text-xs' }, 'Days to Event')
+                        )
+                    ),
+                    // KPI Cards
+                    React.createElement('div', { className: 'grid grid-cols-4 gap-3 mb-4' },
+                        React.createElement('div', { className: 'bg-gray-900 rounded-lg p-3 border border-gray-800' },
+                            React.createElement('div', { className: 'text-gray-400 text-xs' }, 'Total Spend'),
+                            React.createElement('div', { className: 'text-xl font-bold' }, '£22,466')
+                        ),
+                        React.createElement('div', { className: 'bg-gray-900 rounded-lg p-3 border border-gray-800' },
+                            React.createElement('div', { className: 'text-gray-400 text-xs' }, 'Purchases'),
+                            React.createElement('div', { className: 'text-xl font-bold' }, '346')
+                        ),
+                        React.createElement('div', { className: 'bg-gray-900 rounded-lg p-3 border border-gray-800' },
+                            React.createElement('div', { className: 'text-gray-400 text-xs' }, 'Blended CPA'),
+                            React.createElement('div', { className: 'text-xl font-bold text-red-400' }, '£64.93')
+                        ),
+                        React.createElement('div', { className: 'bg-gray-900 rounded-lg p-3 border border-gray-800' },
+                            React.createElement('div', { className: 'text-gray-400 text-xs' }, 'Attribution Gap'),
+                            React.createElement('div', { className: 'text-xl font-bold text-yellow-400' }, '+78%')
+                        )
+                    ),
+                    // Tabs
+                    React.createElement('div', { className: 'flex gap-2' },
+                        tabs.map(tab => 
+                            React.createElement('button', {
+                                key: tab,
+                                onClick: () => setActiveTab(tab),
+                                className: `px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${activeTab === tab ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'}`
+                            }, tab.charAt(0).toUpperCase() + tab.slice(1))
+                        )
+                    )
+                ),
+
+                // Overview Tab
+                activeTab === 'overview' && React.createElement('div', { className: 'grid grid-cols-2 gap-4' },
+                    // Spend vs Revenue
+                    React.createElement('div', { className: 'bg-gray-900 rounded-xl p-4 border border-gray-800' },
+                        React.createElement('h3', { className: 'text-sm font-semibold mb-3' }, '💰 Spend vs Revenue (Jan 5-6)'),
+                        React.createElement(ResponsiveContainer, { width: '100%', height: 200 },
+                            React.createElement(BarChart, { data: spendVsRevenue },
+                                React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#374151' }),
+                                React.createElement(XAxis, { dataKey: 'date', stroke: '#9CA3AF', fontSize: 12 }),
+                                React.createElement(YAxis, { stroke: '#9CA3AF', fontSize: 12, tickFormatter: v => '£' + v }),
+                                React.createElement(Tooltip, { contentStyle: { background: '#1F2937', border: 'none', borderRadius: '8px' } }),
+                                React.createElement(Legend, { wrapperStyle: { fontSize: '12px' } }),
+                                React.createElement(Bar, { dataKey: 'spend', name: 'Spend', fill: '#EF4444', radius: [4, 4, 0, 0] }),
+                                React.createElement(Bar, { dataKey: 'revenue', name: 'Revenue', fill: '#10B981', radius: [4, 4, 0, 0] })
+                            )
+                        ),
+                        React.createElement('div', { className: 'mt-2 p-2 bg-green-900/30 rounded-lg border border-green-700 text-xs' },
+                            React.createElement('span', { className: 'text-green-400 font-semibold' }, '✅ ROAS: '),
+                            React.createElement('span', { className: 'text-gray-300' }, 'Jan 5: 1.86x | Jan 6: 2.10x')
+                        )
+                    ),
+                    // CPA Trend
+                    React.createElement('div', { className: 'bg-gray-900 rounded-xl p-4 border border-gray-800' },
+                        React.createElement('h3', { className: 'text-sm font-semibold mb-3' }, '📈 CPA Trend (14 Days)'),
+                        React.createElement(ResponsiveContainer, { width: '100%', height: 200 },
+                            React.createElement(ComposedChart, { data: dailyData },
+                                React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#374151' }),
+                                React.createElement(XAxis, { dataKey: 'date', stroke: '#9CA3AF', fontSize: 10, interval: 2 }),
+                                React.createElement(YAxis, { yAxisId: 'left', stroke: '#9CA3AF', fontSize: 12, tickFormatter: v => '£' + v }),
+                                React.createElement(YAxis, { yAxisId: 'right', orientation: 'right', stroke: '#9CA3AF', fontSize: 12 }),
+                                React.createElement(Tooltip, { contentStyle: { background: '#1F2937', border: 'none', borderRadius: '8px' } }),
+                                React.createElement(ReferenceLine, { yAxisId: 'left', y: 50, stroke: '#10B981', strokeDasharray: '5 5' }),
+                                React.createElement(Bar, { yAxisId: 'right', dataKey: 'purchases', name: 'Purchases', fill: '#3B82F6', opacity: 0.6, radius: [4, 4, 0, 0] }),
+                                React.createElement(Line, { yAxisId: 'left', type: 'monotone', dataKey: 'cpa', name: 'CPA', stroke: '#F59E0B', strokeWidth: 2, dot: { r: 3 } })
+                            )
+                        )
+                    ),
+                    // Daily Spend
+                    React.createElement('div', { className: 'bg-gray-900 rounded-xl p-4 border border-gray-800 col-span-2' },
+                        React.createElement('h3', { className: 'text-sm font-semibold mb-3' }, '📊 Daily Spend & Purchases'),
+                        React.createElement(ResponsiveContainer, { width: '100%', height: 200 },
+                            React.createElement(ComposedChart, { data: dailyData },
+                                React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#374151' }),
+                                React.createElement(XAxis, { dataKey: 'date', stroke: '#9CA3AF', fontSize: 10, interval: 1 }),
+                                React.createElement(YAxis, { yAxisId: 'left', stroke: '#9CA3AF', fontSize: 12, tickFormatter: v => '£' + v }),
+                                React.createElement(YAxis, { yAxisId: 'right', orientation: 'right', stroke: '#9CA3AF', fontSize: 12 }),
+                                React.createElement(Tooltip, { contentStyle: { background: '#1F2937', border: 'none', borderRadius: '8px' } }),
+                                React.createElement(Legend, { wrapperStyle: { fontSize: '12px' } }),
+                                React.createElement(Area, { yAxisId: 'left', type: 'monotone', dataKey: 'spend', name: 'Spend (£)', fill: '#8B5CF6', fillOpacity: 0.3, stroke: '#8B5CF6', strokeWidth: 2 }),
+                                React.createElement(Bar, { yAxisId: 'right', dataKey: 'purchases', name: 'Purchases', fill: '#10B981', radius: [4, 4, 0, 0] })
+                            )
+                        )
+                    )
+                ),
+
+                // Attribution Tab
+                activeTab === 'attribution' && React.createElement('div', { className: 'grid grid-cols-2 gap-4' },
+                    React.createElement('div', { className: 'bg-gray-900 rounded-xl p-4 border border-gray-800' },
+                        React.createElement('h3', { className: 'text-sm font-semibold mb-3' }, '🎯 Meta vs Actual Sales'),
+                        React.createElement(ResponsiveContainer, { width: '100%', height: 200 },
+                            React.createElement(BarChart, { data: metaVsActual },
+                                React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#374151' }),
+                                React.createElement(XAxis, { dataKey: 'date', stroke: '#9CA3AF', fontSize: 12 }),
+                                React.createElement(YAxis, { stroke: '#9CA3AF', fontSize: 12 }),
+                                React.createElement(Tooltip, { contentStyle: { background: '#1F2937', border: 'none', borderRadius: '8px' } }),
+                                React.createElement(Legend, { wrapperStyle: { fontSize: '12px' } }),
+                                React.createElement(Bar, { dataKey: 'meta', name: 'Meta Attributed', fill: '#3B82F6', radius: [4, 4, 0, 0] }),
+                                React.createElement(Bar, { dataKey: 'actual', name: 'Actual Orders', fill: '#10B981', radius: [4, 4, 0, 0] })
+                            )
+                        ),
+                        React.createElement('div', { className: 'mt-2 p-2 bg-yellow-900/30 rounded-lg border border-yellow-700 text-xs' },
+                            React.createElement('span', { className: 'text-yellow-400 font-semibold' }, '⚠️ Gap: '),
+                            React.createElement('span', { className: 'text-gray-300' }, 'Meta capturing only 56% of sales')
+                        )
+                    ),
+                    React.createElement('div', { className: 'bg-gray-900 rounded-xl p-4 border border-gray-800' },
+                        React.createElement('h3', { className: 'text-sm font-semibold mb-3' }, '📉 CPA Comparison'),
+                        React.createElement('div', { className: 'grid grid-cols-2 gap-3' },
+                            React.createElement('div', { className: 'text-center p-4 bg-red-900/30 rounded-xl border border-red-700' },
+                                React.createElement('div', { className: 'text-gray-400 text-xs mb-1' }, 'Meta CPA'),
+                                React.createElement('div', { className: 'text-2xl font-bold text-red-400' }, '£162'),
+                                React.createElement('div', { className: 'text-xs text-gray-500' }, '9 attributed')
+                            ),
+                            React.createElement('div', { className: 'text-center p-4 bg-green-900/30 rounded-xl border border-green-700' },
+                                React.createElement('div', { className: 'text-gray-400 text-xs mb-1' }, 'True CPA'),
+                                React.createElement('div', { className: 'text-2xl font-bold text-green-400' }, '£91'),
+                                React.createElement('div', { className: 'text-xs text-gray-500' }, '16 actual orders')
+                            )
+                        ),
+                        React.createElement('div', { className: 'mt-3 text-center p-3 bg-purple-900/30 rounded-xl border border-purple-700' },
+                            React.createElement('div', { className: 'text-gray-400 text-xs mb-1' }, 'Revenue Generated'),
+                            React.createElement('div', { className: 'text-2xl font-bold text-purple-400' }, '£2,884')
+                        )
+                    )
+                ),
+
+                // Platforms Tab
+                activeTab === 'platforms' && React.createElement('div', { className: 'grid grid-cols-2 gap-4' },
+                    React.createElement('div', { className: 'bg-gray-900 rounded-xl p-4 border border-gray-800' },
+                        React.createElement('h3', { className: 'text-sm font-semibold mb-3' }, '📱 Platform Split'),
+                        React.createElement(ResponsiveContainer, { width: '100%', height: 200 },
+                            React.createElement(PieChart, null,
+                                React.createElement(Pie, {
+                                    data: platformData,
+                                    cx: '50%',
+                                    cy: '50%',
+                                    innerRadius: 40,
+                                    outerRadius: 70,
+                                    paddingAngle: 5,
+                                    dataKey: 'spend',
+                                    label: ({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`
+                                },
+                                    platformData.map((entry, index) => React.createElement(Cell, { key: index, fill: entry.color }))
+                                ),
+                                React.createElement(Tooltip, { formatter: v => '£' + v.toLocaleString() })
+                            )
+                        ),
+                        React.createElement('div', { className: 'flex justify-center gap-4 mt-2 text-xs' },
+                            React.createElement('div', { className: 'flex items-center gap-1' },
+                                React.createElement('div', { className: 'w-2 h-2 rounded-full', style: { background: '#1877F2' } }),
+                                React.createElement('span', { className: 'text-gray-400' }, 'FB: £6,311')
+                            ),
+                            React.createElement('div', { className: 'flex items-center gap-1' },
+                                React.createElement('div', { className: 'w-2 h-2 rounded-full', style: { background: '#E4405F' } }),
+                                React.createElement('span', { className: 'text-gray-400' }, 'IG: £16,153')
+                            )
+                        )
+                    ),
+                    React.createElement('div', { className: 'bg-gray-900 rounded-xl p-4 border border-gray-800' },
+                        React.createElement('h3', { className: 'text-sm font-semibold mb-3' }, '⚡ Platform CPA'),
+                        React.createElement(ResponsiveContainer, { width: '100%', height: 200 },
+                            React.createElement(BarChart, { data: platformData, layout: 'vertical' },
+                                React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#374151' }),
+                                React.createElement(XAxis, { type: 'number', stroke: '#9CA3AF', fontSize: 12, tickFormatter: v => '£' + v }),
+                                React.createElement(YAxis, { type: 'category', dataKey: 'name', stroke: '#9CA3AF', fontSize: 12, width: 70 }),
+                                React.createElement(Tooltip, { contentStyle: { background: '#1F2937', border: 'none', borderRadius: '8px' } }),
+                                React.createElement(Bar, { dataKey: 'cpa', name: 'CPA', radius: [0, 4, 4, 0] },
+                                    platformData.map((entry, index) => React.createElement(Cell, { key: index, fill: entry.color }))
+                                )
+                            )
+                        ),
+                        React.createElement('div', { className: 'mt-2 p-2 bg-blue-900/30 rounded-lg border border-blue-700 text-xs' },
+                            React.createElement('span', { className: 'text-blue-400 font-semibold' }, '💡 FB is 38% more efficient than IG')
+                        )
+                    )
+                ),
+
+                // Geo Tab
+                activeTab === 'geo' && React.createElement('div', { className: 'grid grid-cols-1 gap-4' },
+                    React.createElement('div', { className: 'bg-gray-900 rounded-xl p-4 border border-gray-800' },
+                        React.createElement('h3', { className: 'text-sm font-semibold mb-3' }, '🌍 CPA by Country'),
+                        React.createElement(ResponsiveContainer, { width: '100%', height: 250 },
+                            React.createElement(BarChart, { data: geoData },
+                                React.createElement(CartesianGrid, { strokeDasharray: '3 3', stroke: '#374151' }),
+                                React.createElement(XAxis, { dataKey: 'country', stroke: '#9CA3AF', fontSize: 12 }),
+                                React.createElement(YAxis, { stroke: '#9CA3AF', fontSize: 12, tickFormatter: v => '£' + v }),
+                                React.createElement(Tooltip, { contentStyle: { background: '#1F2937', border: 'none', borderRadius: '8px' } }),
+                                React.createElement(ReferenceLine, { y: 50, stroke: '#10B981', strokeDasharray: '5 5' }),
+                                React.createElement(Bar, { dataKey: 'cpa', name: 'CPA', radius: [4, 4, 0, 0] },
+                                    geoData.map((entry, index) => React.createElement(Cell, { key: index, fill: entry.cpa <= 65 ? '#10B981' : entry.cpa <= 100 ? '#F59E0B' : '#EF4444' }))
+                                )
+                            )
+                        ),
+                        React.createElement('div', { className: 'mt-2 grid grid-cols-2 gap-2' },
+                            React.createElement('div', { className: 'p-2 bg-green-900/30 rounded-lg border border-green-700 text-xs' },
+                                React.createElement('span', { className: 'text-green-400 font-semibold' }, '✅ Winners: '),
+                                React.createElement('span', { className: 'text-gray-300' }, 'UK (£41), Australia (£65)')
+                            ),
+                            React.createElement('div', { className: 'p-2 bg-red-900/30 rounded-lg border border-red-700 text-xs' },
+                                React.createElement('span', { className: 'text-red-400 font-semibold' }, '❌ Cut: '),
+                                React.createElement('span', { className: 'text-gray-300' }, 'Thailand (£168), NZ (£159)')
+                            )
+                        )
+                    )
+                ),
+
+                // Footer
+                React.createElement('div', { className: 'mt-6 text-center text-gray-500 text-xs' },
+                    React.createElement('p', null, 'Data as of January 6, 2026 | Event: Jan 23-26, 2026'),
+                    React.createElement('p', { className: 'mt-1' }, '⚠️ Meta purchases may differ from actual Skiddle sales')
+                )
+            );
+        }
+
+        ReactDOM.render(React.createElement(Dashboard), document.getElementById('root'));
+    </script>
+</body>
+</html>
