@@ -1,0 +1,215 @@
+{
+  "description": "Performance by Ad Set (audience/targeting)",
+  "lastUpdated": "2026-01-06",
+  "adSets": [
+    {
+      "adSetName": "UK | Warm | Engagers/Data | 18-35",
+      "spend": 4063.45,
+      "impressions": 1205196,
+      "clicks": 9474,
+      "purchases": 84,
+      "cpa": 48.37,
+      "ctr": 0.786,
+      "temperature": "Warm",
+      "geo": "UK"
+    },
+    {
+      "adSetName": "UK | Cold | DnB x Travel | 18-35",
+      "spend": 3827.8,
+      "impressions": 1065369,
+      "clicks": 10197,
+      "purchases": 46,
+      "cpa": 83.21,
+      "ctr": 0.957,
+      "temperature": "Cold",
+      "geo": "UK"
+    },
+    {
+      "adSetName": "Aus/NZ | Warm | Engagers/Data | 18-35",
+      "spend": 2440.14,
+      "impressions": 802578,
+      "clicks": 4903,
+      "purchases": 15,
+      "cpa": 162.68,
+      "ctr": 0.611,
+      "temperature": "Warm",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "Aus/NZ | Cold | DnB x Travel | 18-35",
+      "spend": 2232.29,
+      "impressions": 629605,
+      "clicks": 4445,
+      "purchases": 27,
+      "cpa": 82.68,
+      "ctr": 0.706,
+      "temperature": "Cold",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "EU | Warm | Engagers/Data | 18-35",
+      "spend": 1488.11,
+      "impressions": 867922,
+      "clicks": 3090,
+      "purchases": 8,
+      "cpa": 186.01,
+      "ctr": 0.356,
+      "temperature": "Warm",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "EU | Cold | DnB x Travel | 18-35",
+      "spend": 1418.88,
+      "impressions": 801889,
+      "clicks": 3530,
+      "purchases": 5,
+      "cpa": 283.78,
+      "ctr": 0.44,
+      "temperature": "Cold",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "EU | Warm | Engagers/Data | 18-35 - Copy",
+      "spend": 1291.87,
+      "impressions": 557830,
+      "clicks": 3572,
+      "purchases": 7,
+      "cpa": 184.55,
+      "ctr": 0.64,
+      "temperature": "Warm",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "TH | Warm | Engagers/Data | 18-35",
+      "spend": 1278.33,
+      "impressions": 877156,
+      "clicks": 3454,
+      "purchases": 5,
+      "cpa": 255.67,
+      "ctr": 0.394,
+      "temperature": "Warm",
+      "geo": "Thailand"
+    },
+    {
+      "adSetName": "TH | Cold | DnB x Travel | 18-35",
+      "spend": 1049.7,
+      "impressions": 968154,
+      "clicks": 4062,
+      "purchases": 12,
+      "cpa": 87.48,
+      "ctr": 0.42,
+      "temperature": "Cold",
+      "geo": "Thailand"
+    },
+    {
+      "adSetName": "MIX | Hot | Data | 18-35",
+      "spend": 945.14,
+      "impressions": 254958,
+      "clicks": 1919,
+      "purchases": 28,
+      "cpa": 33.76,
+      "ctr": 0.753,
+      "temperature": "Hot",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "ALL | Warm | Engagers/Data | 18-35",
+      "spend": 500.0,
+      "impressions": 176346,
+      "clicks": 2949,
+      "purchases": 94,
+      "cpa": 5.32,
+      "ctr": 1.672,
+      "temperature": "Warm",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "MIX | Cold | DnB x Travel | 18-35",
+      "spend": 250.0,
+      "impressions": 229788,
+      "clicks": 11,
+      "purchases": 0,
+      "cpa": 0,
+      "ctr": 0.005,
+      "temperature": "Cold",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "MIX | Warm | Engagers/Data | 18-35",
+      "spend": 250.0,
+      "impressions": 172406,
+      "clicks": 362,
+      "purchases": 4,
+      "cpa": 62.5,
+      "ctr": 0.21,
+      "temperature": "Warm",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "TH | HOT | ALL DATA ADV+",
+      "spend": 199.35,
+      "impressions": 72191,
+      "clicks": 812,
+      "purchases": 1,
+      "cpa": 199.35,
+      "ctr": 1.125,
+      "temperature": "Hot",
+      "geo": "Thailand"
+    },
+    {
+      "adSetName": "MIX | Hot | Engagers/Data | 18-35",
+      "spend": 98.46,
+      "impressions": 11826,
+      "clicks": 177,
+      "purchases": 4,
+      "cpa": 24.61,
+      "ctr": 1.497,
+      "temperature": "Hot",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "TH | COLD | DNB ADV+ // - HOT",
+      "spend": 91.11,
+      "impressions": 87618,
+      "clicks": 714,
+      "purchases": 0,
+      "cpa": 0,
+      "ctr": 0.815,
+      "temperature": "Hot",
+      "geo": "Thailand"
+    },
+    {
+      "adSetName": "TH | ENGAGERS | WIDE",
+      "spend": 88.34,
+      "impressions": 50937,
+      "clicks": 562,
+      "purchases": 0,
+      "cpa": 0,
+      "ctr": 1.103,
+      "temperature": "Cold",
+      "geo": "Thailand"
+    },
+    {
+      "adSetName": "TH | LAL | TH BUYERS",
+      "spend": 87.85,
+      "impressions": 47685,
+      "clicks": 408,
+      "purchases": 1,
+      "cpa": 87.85,
+      "ctr": 0.856,
+      "temperature": "Warm",
+      "geo": "Thailand"
+    },
+    {
+      "adSetName": "AUS NZ BALI | HOT | ALL DATA ADV+",
+      "spend": 54.07,
+      "impressions": 18734,
+      "clicks": 188,
+      "purchases": 0,
+      "cpa": 0,
+      "ctr": 1.004,
+      "temperature": "Hot",
+      "geo": "Mixed"
+    }
+  ]
+}

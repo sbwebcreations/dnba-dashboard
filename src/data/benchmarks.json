@@ -1,0 +1,39 @@
+{
+  "description": "Campaign benchmarks and targets",
+  "asOf": "2026-01-06",
+  "totals": {
+    "totalSpend": 21754.0,
+    "totalPurchasesMeta": 341,
+    "blendedCPA": 63.79,
+    "targetCPA": 50,
+    "avgCTR": 0.617,
+    "avgCPC": 0.39,
+    "avgCPM": 2.44,
+    "totalImpressions": 8932786,
+    "totalClicks": 55113
+  },
+  "platformBenchmarks": {
+    "facebook": {
+      "spend": 6084.17,
+      "purchases": 132,
+      "cpa": 46.09,
+      "spendShare": 0.28,
+      "purchaseShare": 0.387
+    },
+    "instagram": {
+      "spend": 15666.88,
+      "purchases": 209,
+      "cpa": 74.96,
+      "spendShare": 0.72,
+      "purchaseShare": 0.613
+    }
+  },
+  "eventDetails": {
+    "eventName": "DnB Allstars Thailand 2026",
+    "eventStartDate": "2026-01-23",
+    "eventEndDate": "2026-01-26",
+    "venue": "Cafe del Mar, Phuket",
+    "ticketPrice": 170,
+    "dayTicketPrice": 85
+  }
+}

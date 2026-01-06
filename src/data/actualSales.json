@@ -1,0 +1,20 @@
+{
+  "description": "Actual ticket sales from Skiddle (not Meta attributed)",
+  "lastUpdated": "2026-01-06",
+  "sales": [
+    {
+      "date": "2026-01-05",
+      "orders": 7,
+      "tickets": 8,
+      "revenue": 1387.0,
+      "source": "Skiddle"
+    },
+    {
+      "date": "2026-01-06",
+      "orders": 9,
+      "tickets": 10,
+      "revenue": 1496.69,
+      "source": "Skiddle"
+    }
+  ]
+}
