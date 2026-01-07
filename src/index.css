@@ -429,3 +429,9 @@ body {
 .gradient-border:hover::before {
   opacity: 1;
 }
+
+/* Toast progress bar animation */
+@keyframes shrink {
+  from { width: 100%; }
+  to { width: 0%; }
+}

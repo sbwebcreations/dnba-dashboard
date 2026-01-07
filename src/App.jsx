@@ -4,6 +4,7 @@ import {
   ResponsiveContainer, ComposedChart, Area, PieChart, Pie, Cell, ReferenceLine,
   AreaChart, FunnelChart, Funnel, LabelList
 } from 'recharts'
+import * as XLSX from 'xlsx'
 import { formatCurrency, formatPercent, formatNumber, formatShortDate } from './utils/formatters'
 import { getDaysUntilEvent, getPerformanceStatus, getStatusColor } from './utils/calculations'
 
@@ -17,22 +18,23 @@ import defaultActualSalesData from './data/actualSales.json'
 import defaultBenchmarksData from './data/benchmarks.json'
 
 // CAMPAIGN REALITY - Key metrics from actual Skiddle data
+// SOURCE OF TRUTH: These match benchmarks.json actualSalesTotals
 const CAMPAIGN_ACTUALS = {
   totalOrders: 834,
   totalTickets: 910,
-  totalRevenue: 388174,
-  totalSpend: 21754,
+  totalRevenue: 388173.90,  // Verified from Skiddle
+  totalSpend: 21754.0,
   metaPurchases: 341,
-  trueCPA: 26.08,
-  metaCPA: 63.79,
-  roas: 17.84,
-  attributionRate: 0.41, // Meta only sees 41% of actual sales
+  trueCPA: 26.08,           // = totalSpend / totalOrders
+  metaCPA: 63.79,           // = totalSpend / metaPurchases
+  roas: 17.84,              // = totalRevenue / totalSpend
+  attributionRate: 0.41,    // Meta only sees 41% of actual sales
 }
 
 // Merge daily performance with estimated actual sales
 // Distributes actual sales proportionally based on Meta purchases
-function getMergedDailyData() {
-  const metrics = dailyData.metrics
+function getMergedDailyData(dailyDataInput = defaultDailyData) {
+  const metrics = dailyDataInput.metrics
   const totalMetaPurchases = metrics.reduce((sum, d) => sum + d.purchases, 0)
   const avgRevenuePerOrder = CAMPAIGN_ACTUALS.totalRevenue / CAMPAIGN_ACTUALS.totalOrders
 
@@ -119,10 +121,11 @@ function exportToCSV(data, filename) {
 }
 
 // Data Upload Modal Component
-function DataUploadModal({ isOpen, onClose, onDataUpload }) {
+function DataUploadModal({ isOpen, onClose, onDataUpload, onShowToast }) {
   const [isDragging, setIsDragging] = useState(false)
   const [uploadStatus, setUploadStatus] = useState(null)
   const [uploadedFiles, setUploadedFiles] = useState([])
+  const [isProcessing, setIsProcessing] = useState(false)
   const fileInputRef = useRef(null)
 
   const handleDragOver = useCallback((e) => {
@@ -135,60 +138,290 @@ function DataUploadModal({ isOpen, onClose, onDataUpload }) {
     setIsDragging(false)
   }, [])
 
+  // Parse CSV to array of objects
+  const parseCSV = useCallback((csvText) => {
+    const lines = csvText.trim().split('\n')
+    if (lines.length < 2) return []
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
+    const rows = []
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''))
+      const row = {}
+      headers.forEach((h, idx) => {
+        const val = values[idx] || ''
+        // Try to parse as number
+        const num = parseFloat(val)
+        row[h] = isNaN(num) ? val : num
+      })
+      rows.push(row)
+    }
+    return rows
+  }, [])
+
+  // Convert daily orders CSV to dashboard format
+  const processDailyOrdersCSV = useCallback((rows) => {
+    // Group by date and aggregate
+    const byDate = {}
+    let validRows = 0
+
+    rows.forEach(row => {
+      // Support multiple date column names (including Skiddle format)
+      const dateRaw = row.date || row.Date || row.order_date || row.ORDER_DATE ||
+                      row['Created at'] || row['created_at'] || row.created_at ||
+                      row['Event start date'] || row.event_date
+      if (!dateRaw) return
+
+      // Parse date - handle various formats
+      let dateStr
+      if (typeof dateRaw === 'number') {
+        // Excel serial date
+        const excelEpoch = new Date(1899, 11, 30)
+        const date = new Date(excelEpoch.getTime() + dateRaw * 86400000)
+        dateStr = date.toISOString().split('T')[0]
+      } else {
+        // String date - try to parse
+        const parsed = new Date(dateRaw)
+        if (!isNaN(parsed.getTime())) {
+          dateStr = parsed.toISOString().split('T')[0]
+        } else {
+          // Try DD/MM/YYYY format
+          const parts = String(dateRaw).split(/[\/\-]/)
+          if (parts.length === 3) {
+            const [d, m, y] = parts
+            dateStr = `${y.length === 2 ? '20' + y : y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
+          } else {
+            return
+          }
+        }
+      }
+
+      if (!byDate[dateStr]) {
+        byDate[dateStr] = { orders: 0, revenue: 0, tickets: 0 }
+      }
+
+      // Support Skiddle column names
+      const revenue = row.revenue || row.Revenue || row.total || row.Total ||
+                      row['Total'] || row['total'] || 0
+      const tickets = row.tickets || row.Tickets || row.quantity || row.Quantity ||
+                      row['No of items'] || row['no_of_items'] || row.items || 1
+
+      byDate[dateStr].orders += 1
+      byDate[dateStr].revenue += parseFloat(revenue) || 0
+      byDate[dateStr].tickets += parseInt(tickets) || 1
+      validRows++
+    })
+
+    return {
+      dailyOrders: Object.entries(byDate).map(([date, data]) => ({
+        date,
+        orders: data.orders,
+        revenue: data.revenue,
+        tickets: data.tickets,
+      })).sort((a, b) => a.date.localeCompare(b.date)),
+      totals: {
+        totalOrders: validRows,
+        totalRevenue: Object.values(byDate).reduce((sum, d) => sum + d.revenue, 0),
+        totalTickets: Object.values(byDate).reduce((sum, d) => sum + d.tickets, 0),
+      }
+    }
+  }, [])
+
+  // Convert all-time orders CSV to dashboard format
+  const processAllTimeOrdersCSV = useCallback((rows) => {
+    const totalOrders = rows.length
+    const totalRevenue = rows.reduce((sum, r) => {
+      const rev = r.revenue || r.Revenue || r.total || r.Total || r['Total'] || 0
+      return sum + (parseFloat(rev) || 0)
+    }, 0)
+    const totalTickets = rows.reduce((sum, r) => {
+      const tix = r.tickets || r.Tickets || r.quantity || r.Quantity || r['No of items'] || 1
+      return sum + (parseInt(tix) || 1)
+    }, 0)
+
+    return {
+      totalOrders,
+      totalRevenue,
+      totalTickets,
+      avgOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+    }
+  }, [])
+
+  // Extract date from filename (e.g., Ticket_Data_All_Time_Export_15.01.26)
+  const extractDateFromFilename = useCallback((filename) => {
+    // Match DD.MM.YY or DD-MM-YY or DD_MM_YY at end of filename
+    const match = filename.match(/(\d{1,2})[.\-_](\d{1,2})[.\-_](\d{2,4})(?:\.[^.]+)?$/)
+    if (match) {
+      const [, day, month, year] = match
+      const fullYear = year.length === 2 ? `20${year}` : year
+      return `${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`
+    }
+    return null
+  }, [])
+
+  // Parse Excel file to array of objects
+  const parseExcel = useCallback((arrayBuffer) => {
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+    const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+    return XLSX.utils.sheet_to_json(firstSheet)
+  }, [])
+
   const processFile = useCallback((file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
+      const fileName = file.name.toLowerCase()
+      const isCSV = fileName.endsWith('.csv')
+      const isExcel = fileName.endsWith('.xlsx') || fileName.endsWith('.xls')
+      const isJSON = fileName.endsWith('.json')
+
       reader.onload = (e) => {
         try {
-          const data = JSON.parse(e.target.result)
-          resolve({ name: file.name, data, success: true })
+          let rows = []
+
+          if (isExcel) {
+            // Parse Excel file
+            rows = parseExcel(e.target.result)
+          } else if (isCSV) {
+            // Parse CSV file
+            rows = parseCSV(e.target.result)
+          } else if (isJSON) {
+            // Parse JSON file
+            const data = JSON.parse(e.target.result)
+            resolve({ name: file.name, data, type: 'json', success: true })
+            return
+          }
+
+          // Process CSV/Excel rows
+          if (rows.length > 0) {
+            // Extract export date from filename (e.g., Ticket_Data_All_Time_Export_15.01.26.xlsx)
+            const exportDate = extractDateFromFilename(file.name)
+
+            // Determine data type
+            if (fileName.includes('daily') || fileName.includes('order')) {
+              const processed = processDailyOrdersCSV(rows)
+              processed.exportDate = exportDate
+              processed.fileName = file.name
+              resolve({ name: file.name, data: processed, type: 'dailyOrders', success: true })
+            } else if (fileName.includes('alltime') || fileName.includes('all-time') || fileName.includes('total')) {
+              const processed = processAllTimeOrdersCSV(rows)
+              processed.exportDate = exportDate
+              processed.fileName = file.name
+              resolve({ name: file.name, data: processed, type: 'allTimeOrders', success: true })
+            } else {
+              // Generic - try to detect by columns (including Skiddle format)
+              const firstRow = rows[0] || {}
+              const hasDate = firstRow.date || firstRow.Date || firstRow.order_date || firstRow.ORDER_DATE ||
+                              firstRow['Created at'] || firstRow['created_at'] || firstRow['Event start date']
+              if (hasDate) {
+                const processed = processDailyOrdersCSV(rows)
+                processed.exportDate = exportDate
+                processed.fileName = file.name
+                resolve({ name: file.name, data: processed, type: 'dailyOrders', success: true })
+              } else {
+                const processed = processAllTimeOrdersCSV(rows)
+                processed.exportDate = exportDate
+                processed.fileName = file.name
+                resolve({ name: file.name, data: processed, type: 'allTimeOrders', success: true })
+              }
+            }
+          } else {
+            reject({ name: file.name, error: 'No data found in file', success: false })
+          }
         } catch (err) {
-          reject({ name: file.name, error: 'Invalid JSON format', success: false })
+          reject({ name: file.name, error: err.message || 'Invalid file format', success: false })
         }
       }
       reader.onerror = () => reject({ name: file.name, error: 'Failed to read file', success: false })
-      reader.readAsText(file)
+
+      // Use different read method for Excel vs text files
+      if (isExcel) {
+        reader.readAsArrayBuffer(file)
+      } else {
+        reader.readAsText(file)
+      }
     })
-  }, [])
+  }, [parseCSV, parseExcel, processDailyOrdersCSV, processAllTimeOrdersCSV])
 
   const handleDrop = useCallback(async (e) => {
     e.preventDefault()
     setIsDragging(false)
+    setIsProcessing(true)
     setUploadStatus('processing')
 
-    const files = Array.from(e.dataTransfer?.files || e.target?.files || [])
-    const jsonFiles = files.filter(f => f.name.endsWith('.json'))
+    // Show loading toast
+    onShowToast?.({ type: 'loading', message: 'Processing your data...', details: 'This may take a moment' })
 
-    if (jsonFiles.length === 0) {
+    const files = Array.from(e.dataTransfer?.files || e.target?.files || [])
+    const validFiles = files.filter(f =>
+      f.name.endsWith('.json') ||
+      f.name.endsWith('.csv') ||
+      f.name.endsWith('.xlsx') ||
+      f.name.endsWith('.xls')
+    )
+
+    if (validFiles.length === 0) {
       setUploadStatus('error')
+      setIsProcessing(false)
+      setUploadedFiles([{ name: 'No valid files', error: 'Please upload .json, .csv, or .xlsx files', success: false }])
+      onShowToast?.({ type: 'error', message: 'Invalid file format', details: 'Please upload .json, .csv, or .xlsx files' })
       return
     }
 
-    const results = await Promise.allSettled(jsonFiles.map(processFile))
+    const results = await Promise.allSettled(validFiles.map(processFile))
     const processed = results.map((r, i) =>
-      r.status === 'fulfilled' ? r.value : { name: jsonFiles[i].name, error: r.reason?.error || 'Unknown error', success: false }
+      r.status === 'fulfilled' ? r.value : { name: validFiles[i].name, error: r.reason?.error || 'Unknown error', success: false }
     )
 
     setUploadedFiles(processed)
+    setIsProcessing(false)
 
     const successful = processed.filter(p => p.success)
     if (successful.length > 0) {
       setUploadStatus('success')
       // Determine data type from filename and upload
-      successful.forEach(({ name, data }) => {
-        const type = name.toLowerCase().includes('daily') ? 'daily'
-          : name.toLowerCase().includes('creative') ? 'creatives'
-          : name.toLowerCase().includes('platform') ? 'platforms'
-          : name.toLowerCase().includes('adset') || name.toLowerCase().includes('ad_set') ? 'adsets'
-          : name.toLowerCase().includes('geo') ? 'geo'
-          : name.toLowerCase().includes('sales') ? 'sales'
-          : 'unknown'
-        onDataUpload(type, data)
+      successful.forEach(({ name, data, type }) => {
+        if (type === 'dailyOrders' || type === 'allTimeOrders') {
+          // CSV order data
+          onDataUpload(type, data)
+        } else {
+          // JSON data - determine type from filename
+          const dataType = name.toLowerCase().includes('daily') ? 'daily'
+            : name.toLowerCase().includes('creative') ? 'creatives'
+            : name.toLowerCase().includes('platform') ? 'platforms'
+            : name.toLowerCase().includes('adset') || name.toLowerCase().includes('ad_set') ? 'adsets'
+            : name.toLowerCase().includes('geo') ? 'geo'
+            : name.toLowerCase().includes('sales') ? 'sales'
+            : 'unknown'
+          onDataUpload(dataType, data)
+        }
       })
+
+      // Calculate summary for toast
+      const totalRecords = successful.reduce((sum, f) => {
+        const count = f.data?.dailyOrders?.length || f.data?.totalOrders || f.data?.metrics?.length || 0
+        return sum + count
+      }, 0)
+
+      const fileNames = successful.map(f => f.name).join(', ')
+      onShowToast?.({
+        type: 'success',
+        message: 'Data updated successfully!',
+        details: `${successful.length} file${successful.length > 1 ? 's' : ''} processed${totalRecords > 0 ? ` • ${totalRecords.toLocaleString()} records` : ''}`
+      })
+
+      // Auto-close modal after brief delay
+      setTimeout(() => {
+        onClose()
+        setUploadStatus(null)
+        setUploadedFiles([])
+      }, 1000)
     } else {
       setUploadStatus('error')
+      const errors = processed.filter(p => !p.success).map(p => p.error).join(', ')
+      onShowToast?.({ type: 'error', message: 'Upload failed', details: errors })
     }
-  }, [processFile, onDataUpload])
+  }, [processFile, onDataUpload, onShowToast, onClose])
 
   const handleFileSelect = useCallback(() => {
     fileInputRef.current?.click()
@@ -214,27 +447,50 @@ function DataUploadModal({ isOpen, onClose, onDataUpload }) {
           <div
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            onClick={handleFileSelect}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-              isDragging
-                ? 'border-purple-500 bg-purple-500/10'
-                : 'border-[#2d4a6f] hover:border-purple-500/50 hover:bg-[#1a2744]'
+            onDrop={isProcessing ? undefined : handleDrop}
+            onClick={isProcessing ? undefined : handleFileSelect}
+            className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all ${
+              isProcessing
+                ? 'border-blue-500/50 bg-blue-500/5 cursor-wait'
+                : isDragging
+                ? 'border-purple-500 bg-purple-500/10 cursor-pointer'
+                : 'border-[#2d4a6f] hover:border-purple-500/50 hover:bg-[#1a2744] cursor-pointer'
             }`}
           >
             <input
               ref={fileInputRef}
               type="file"
-              accept=".json"
+              accept=".json,.csv,.xlsx,.xls"
               multiple
               onChange={handleDrop}
               className="hidden"
+              disabled={isProcessing}
             />
-            <div className="text-4xl mb-3">📁</div>
-            <p className="text-gray-300 mb-2">
-              {isDragging ? 'Drop files here...' : 'Drag & drop JSON files here'}
-            </p>
-            <p className="text-gray-500 text-sm">or click to browse</p>
+
+            {/* Processing Overlay */}
+            {isProcessing ? (
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <svg className="w-16 h-16 text-blue-500 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-blue-400 font-medium text-lg">Processing your data...</p>
+                  <p className="text-gray-500 text-sm mt-1">Parsing rows and calculating metrics</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="text-4xl mb-3">📁</div>
+                <p className="text-gray-300 mb-2">
+                  {isDragging ? 'Drop files here...' : 'Drag & drop files here'}
+                </p>
+                <p className="text-gray-500 text-xs mb-1">Supports: CSV, Excel (.xlsx), JSON</p>
+                <p className="text-gray-500 text-sm">or click to browse</p>
+              </>
+            )}
           </div>
 
           {/* Upload Status */}
@@ -275,13 +531,24 @@ function DataUploadModal({ isOpen, onClose, onDataUpload }) {
           {/* File Format Help */}
           <div className="mt-4 p-4 bg-[#1a2744] rounded-lg">
             <h4 className="text-sm font-medium mb-2">Supported file formats:</h4>
-            <ul className="text-xs text-gray-400 space-y-1">
-              <li>• <code className="text-purple-400">dailyPerformance.json</code> - Daily metrics</li>
-              <li>• <code className="text-purple-400">creativePerformance.json</code> - Creative data</li>
-              <li>• <code className="text-purple-400">platformPerformance.json</code> - Platform breakdown</li>
-              <li>• <code className="text-purple-400">adSetPerformance.json</code> - Ad set data</li>
-              <li>• <code className="text-purple-400">geoPerformance.json</code> - Geographic data</li>
-            </ul>
+            <div className="space-y-3">
+              <div>
+                <p className="text-xs text-gray-300 font-medium mb-1">Orders (CSV or Excel):</p>
+                <ul className="text-xs text-gray-400 space-y-1">
+                  <li>• <code className="text-green-400">orders.xlsx</code> or <code className="text-green-400">.csv</code> - Skiddle export</li>
+                  <li>• Columns: <code className="text-blue-400">date</code>, <code className="text-blue-400">revenue</code>, <code className="text-blue-400">tickets</code></li>
+                  <li>• Auto-detects daily vs all-time data</li>
+                </ul>
+              </div>
+              <div>
+                <p className="text-xs text-gray-300 font-medium mb-1">JSON Performance Data:</p>
+                <ul className="text-xs text-gray-400 space-y-1">
+                  <li>• <code className="text-purple-400">dailyPerformance.json</code> - Daily metrics</li>
+                  <li>• <code className="text-purple-400">creativePerformance.json</code> - Creative data</li>
+                  <li>• <code className="text-purple-400">geoPerformance.json</code> - Geographic data</li>
+                </ul>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -360,6 +627,93 @@ function ThemeToggle({ isDark, onToggle }) {
   )
 }
 
+// Toast Notification Component
+function Toast({ toast, onDismiss }) {
+  const [isVisible, setIsVisible] = useState(true)
+  const [isExiting, setIsExiting] = useState(false)
+
+  useEffect(() => {
+    if (toast?.type === 'success') {
+      // Auto-dismiss success toasts after 5 seconds
+      const timer = setTimeout(() => {
+        handleDismiss()
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [toast])
+
+  const handleDismiss = () => {
+    setIsExiting(true)
+    setTimeout(() => {
+      setIsVisible(false)
+      onDismiss()
+    }, 300)
+  }
+
+  if (!toast || !isVisible) return null
+
+  const bgColor = toast.type === 'success' ? 'bg-green-900/95 border-green-600'
+    : toast.type === 'error' ? 'bg-red-900/95 border-red-600'
+    : 'bg-blue-900/95 border-blue-600'
+
+  const iconColor = toast.type === 'success' ? 'text-green-400'
+    : toast.type === 'error' ? 'text-red-400'
+    : 'text-blue-400'
+
+  return (
+    <div className={`fixed bottom-6 right-6 z-50 transition-all duration-300 ${isExiting ? 'opacity-0 translate-y-2' : 'opacity-100 translate-y-0'}`}>
+      <div className={`${bgColor} border rounded-xl shadow-2xl p-4 max-w-sm backdrop-blur-sm`}>
+        <div className="flex items-start gap-3">
+          {/* Icon */}
+          <div className={`flex-shrink-0 ${iconColor}`}>
+            {toast.type === 'loading' ? (
+              <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : toast.type === 'success' ? (
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            ) : (
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-white">{toast.message}</p>
+            {toast.details && (
+              <p className="text-xs text-gray-300 mt-1">{toast.details}</p>
+            )}
+          </div>
+
+          {/* Dismiss button (not shown for loading) */}
+          {toast.type !== 'loading' && (
+            <button
+              onClick={handleDismiss}
+              className="flex-shrink-0 p-1 rounded hover:bg-white/10 transition-colors"
+            >
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Progress bar for auto-dismiss */}
+        {toast.type === 'success' && (
+          <div className="mt-3 h-1 bg-green-800 rounded-full overflow-hidden">
+            <div className="h-full bg-green-400 rounded-full animate-shrink" style={{ animation: 'shrink 5s linear forwards' }} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // Onboarding Tooltip Component
 function OnboardingTooltip({ step, totalSteps, title, description, position = 'bottom', onNext, onSkip, onComplete }) {
   const positionClasses = {
@@ -416,12 +770,12 @@ function AICopilot({ isOpen, onClose, metrics, creatives, adSets, geoData }) {
     setIsThinking(true)
     const lowerQ = q.toLowerCase()
 
-    // Calculate totals for context
-    const totalSpend = metrics.reduce((a, b) => a + b.spend, 0)
-    const totalOrders = metrics.reduce((a, b) => a + (b.ordersActual || 0), 0)
-    const totalRevenue = metrics.reduce((a, b) => a + (b.revenueActual || 0), 0)
-    const trueCPA = totalOrders > 0 ? totalSpend / totalOrders : 0
-    const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0
+    // Use verified CAMPAIGN_ACTUALS as source of truth for totals
+    const totalSpend = CAMPAIGN_ACTUALS.totalSpend
+    const totalOrders = CAMPAIGN_ACTUALS.totalOrders
+    const totalRevenue = CAMPAIGN_ACTUALS.totalRevenue
+    const trueCPA = CAMPAIGN_ACTUALS.trueCPA
+    const roas = CAMPAIGN_ACTUALS.roas
 
     // Find best/worst performers
     const bestCreative = creatives?.sort((a, b) => a.cpa - b.cpa).find(c => c.cpa > 0)
@@ -578,11 +932,12 @@ function AICopilot({ isOpen, onClose, metrics, creatives, adSets, geoData }) {
 // Executive Summary Generator
 function ExecutiveSummary({ metrics, creatives, geoData, onClose }) {
   const summary = useMemo(() => {
-    const totalSpend = metrics.reduce((a, b) => a + b.spend, 0)
-    const totalOrders = metrics.reduce((a, b) => a + (b.ordersActual || 0), 0)
-    const totalRevenue = metrics.reduce((a, b) => a + (b.revenueActual || 0), 0)
-    const trueCPA = totalOrders > 0 ? totalSpend / totalOrders : 0
-    const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0
+    // Use verified CAMPAIGN_ACTUALS as source of truth
+    const totalSpend = CAMPAIGN_ACTUALS.totalSpend
+    const totalOrders = CAMPAIGN_ACTUALS.totalOrders
+    const totalRevenue = CAMPAIGN_ACTUALS.totalRevenue
+    const trueCPA = CAMPAIGN_ACTUALS.trueCPA
+    const roas = CAMPAIGN_ACTUALS.roas
 
     const lastWeek = metrics.slice(-7)
     const prevWeek = metrics.slice(-14, -7)
@@ -787,12 +1142,15 @@ function WhatIfSimulator({ metrics, onClose }) {
   const [budgetChange, setBudgetChange] = useState(0)
   const [cpaChange, setCpaChange] = useState(0)
 
+  // Use verified CAMPAIGN_ACTUALS as source of truth
   const currentTotals = useMemo(() => {
-    const totalSpend = metrics.reduce((a, b) => a + b.spend, 0)
-    const totalOrders = metrics.reduce((a, b) => a + (b.ordersActual || 0), 0)
-    const totalRevenue = metrics.reduce((a, b) => a + (b.revenueActual || 0), 0)
-    return { totalSpend, totalOrders, totalRevenue, cpa: totalOrders > 0 ? totalSpend / totalOrders : 0 }
-  }, [metrics])
+    return {
+      totalSpend: CAMPAIGN_ACTUALS.totalSpend,
+      totalOrders: CAMPAIGN_ACTUALS.totalOrders,
+      totalRevenue: CAMPAIGN_ACTUALS.totalRevenue,
+      cpa: CAMPAIGN_ACTUALS.trueCPA
+    }
+  }, [])
 
   const projectedTotals = useMemo(() => {
     const newSpend = currentTotals.totalSpend * (1 + budgetChange / 100)
@@ -1584,24 +1942,35 @@ function RecommendationCard({ type, title, description, impact, action }) {
 }
 
 // Overview View - World-Class Analytics Dashboard
-function OverviewView({ filteredMetrics, geoCountries, dateLabel }) {
+function OverviewView({ filteredMetrics, geoCountries, dateLabel, isAllTime = false }) {
   const daysToEvent = getDaysUntilEvent();
 
   // Calculate totals from filtered metrics (now includes actual sales data)
+  // When viewing "All Time" (Maximum), use CAMPAIGN_ACTUALS as source of truth
   const calculatedTotals = useMemo(() => {
-    const totalSpend = filteredMetrics.reduce((a, b) => a + b.spend, 0)
-    const totalPurchasesMeta = filteredMetrics.reduce((a, b) => a + (b.purchasesMeta || b.purchases || 0), 0)
-    const totalOrdersActual = filteredMetrics.reduce((a, b) => a + (b.ordersActual || 0), 0)
-    const totalTicketsActual = filteredMetrics.reduce((a, b) => a + (b.ticketsActual || 0), 0)
-    const totalRevenueActual = filteredMetrics.reduce((a, b) => a + (b.revenueActual || 0), 0)
+    // Calculate from daily metrics
+    const calcTotalSpend = filteredMetrics.reduce((a, b) => a + b.spend, 0)
+    const calcTotalPurchasesMeta = filteredMetrics.reduce((a, b) => a + (b.purchasesMeta || b.purchases || 0), 0)
+    const calcTotalOrdersActual = filteredMetrics.reduce((a, b) => a + (b.ordersActual || 0), 0)
+    const calcTotalTicketsActual = filteredMetrics.reduce((a, b) => a + (b.ticketsActual || 0), 0)
+    const calcTotalRevenueActual = filteredMetrics.reduce((a, b) => a + (b.revenueActual || 0), 0)
     const totalImpressions = filteredMetrics.reduce((a, b) => a + b.impressions, 0)
     const totalClicks = filteredMetrics.reduce((a, b) => a + b.clicks, 0)
 
-    const metaCPA = totalPurchasesMeta > 0 ? totalSpend / totalPurchasesMeta : 0
-    const trueCPA = totalOrdersActual > 0 ? totalSpend / totalOrdersActual : 0
-    const roas = totalSpend > 0 ? totalRevenueActual / totalSpend : 0
+    // Use verified totals from CAMPAIGN_ACTUALS when viewing all-time data
+    // This ensures accuracy over summed daily estimates
+    const totalSpend = isAllTime ? CAMPAIGN_ACTUALS.totalSpend : calcTotalSpend
+    const totalPurchasesMeta = isAllTime ? CAMPAIGN_ACTUALS.metaPurchases : calcTotalPurchasesMeta
+    const totalOrdersActual = isAllTime ? CAMPAIGN_ACTUALS.totalOrders : calcTotalOrdersActual
+    const totalTicketsActual = isAllTime ? CAMPAIGN_ACTUALS.totalTickets : calcTotalTicketsActual
+    const totalRevenueActual = isAllTime ? CAMPAIGN_ACTUALS.totalRevenue : calcTotalRevenueActual
+
+    // Use pre-calculated verified values for all-time, calculate for filtered periods
+    const metaCPA = isAllTime ? CAMPAIGN_ACTUALS.metaCPA : (totalPurchasesMeta > 0 ? totalSpend / totalPurchasesMeta : 0)
+    const trueCPA = isAllTime ? CAMPAIGN_ACTUALS.trueCPA : (totalOrdersActual > 0 ? totalSpend / totalOrdersActual : 0)
+    const roas = isAllTime ? CAMPAIGN_ACTUALS.roas : (totalSpend > 0 ? totalRevenueActual / totalSpend : 0)
     const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0
-    const attributionGap = totalOrdersActual > 0 ? ((totalOrdersActual - totalPurchasesMeta) / totalOrdersActual * 100) : 0
+    const attributionGap = isAllTime ? ((1 - CAMPAIGN_ACTUALS.attributionRate) * 100) : (totalOrdersActual > 0 ? ((totalOrdersActual - totalPurchasesMeta) / totalOrdersActual * 100) : 0)
 
     return {
       totalSpend,
@@ -1618,7 +1987,7 @@ function OverviewView({ filteredMetrics, geoCountries, dateLabel }) {
       attributionGap,
       targetCPA: 50
     }
-  }, [filteredMetrics])
+  }, [filteredMetrics, isAllTime])
 
   // Generate sparkline data for KPIs
   const sparklineData = useMemo(() => {
@@ -1743,8 +2112,8 @@ function OverviewView({ filteredMetrics, geoCountries, dateLabel }) {
   }, [filteredMetrics])
 
   // Platform split estimation (proportional to overall campaign)
-  const fbShare = benchmarksData.platformBenchmarks.facebook.spendShare
-  const igShare = benchmarksData.platformBenchmarks.instagram.spendShare
+  const fbShare = defaultBenchmarksData.platformBenchmarks.facebook.spendShare
+  const igShare = defaultBenchmarksData.platformBenchmarks.instagram.spendShare
   const platformSummary = [
     { name: 'Facebook', spend: calculatedTotals.totalSpend * fbShare, color: COLORS.facebook },
     { name: 'Instagram', spend: calculatedTotals.totalSpend * igShare, color: COLORS.instagram },
@@ -2493,14 +2862,20 @@ function PlatformsView({ platformData, dateLabel }) {
 function GeographyView({ countries, spendRatio, dateLabel }) {
   // Apply proportional estimation based on selected date range
   const scaledCountries = useMemo(() => {
-    return countries.map(c => ({
-      ...c,
-      spend: c.spend * spendRatio,
-      impressions: Math.round(c.impressions * spendRatio),
-      clicks: Math.round(c.clicks * spendRatio),
-      purchases: Math.round(c.purchases * spendRatio),
-      // CPA stays the same ratio
-    }))
+    return countries.map(c => {
+      const scaledSpend = c.spend * spendRatio
+      const scaledPurchases = Math.round(c.purchases * spendRatio)
+      // Recalculate CPA based on scaled values
+      const scaledCPA = scaledPurchases > 0 ? scaledSpend / scaledPurchases : 0
+      return {
+        ...c,
+        spend: scaledSpend,
+        impressions: Math.round(c.impressions * spendRatio),
+        clicks: Math.round(c.clicks * spendRatio),
+        purchases: scaledPurchases,
+        cpa: scaledCPA,
+      }
+    })
   }, [countries, spendRatio])
 
   const isFiltered = spendRatio < 0.99
@@ -3141,6 +3516,9 @@ function App() {
   const [showExecutiveSummary, setShowExecutiveSummary] = useState(false)
   const [showWhatIfSimulator, setShowWhatIfSimulator] = useState(false)
 
+  // Toast notification state
+  const [toast, setToast] = useState(null) // { type: 'success' | 'error' | 'loading', message: string, details?: string }
+
   // Custom data state (allows uploaded data to override defaults)
   const [customData, setCustomData] = useState({
     daily: null,
@@ -3149,6 +3527,8 @@ function App() {
     adsets: null,
     geo: null,
     sales: null,
+    dailyOrders: null,    // CSV daily orders
+    allTimeOrders: null,  // CSV all-time orders
   })
 
   // Use custom data if uploaded, otherwise use defaults
@@ -3157,6 +3537,33 @@ function App() {
   const platformData = customData.platforms || defaultPlatformData
   const adSetData = customData.adsets || defaultAdSetData
   const geoData = customData.geo || defaultGeoData
+
+  // Calculate campaign actuals from uploaded CSV or use defaults
+  const campaignActuals = useMemo(() => {
+    if (customData.allTimeOrders) {
+      const data = customData.allTimeOrders
+      return {
+        ...CAMPAIGN_ACTUALS,
+        totalOrders: data.totalOrders,
+        totalRevenue: data.totalRevenue,
+        totalTickets: data.totalTickets,
+        trueCPA: CAMPAIGN_ACTUALS.totalSpend / data.totalOrders,
+        roas: data.totalRevenue / CAMPAIGN_ACTUALS.totalSpend,
+      }
+    }
+    if (customData.dailyOrders) {
+      const data = customData.dailyOrders.totals
+      return {
+        ...CAMPAIGN_ACTUALS,
+        totalOrders: data.totalOrders,
+        totalRevenue: data.totalRevenue,
+        totalTickets: data.totalTickets,
+        trueCPA: CAMPAIGN_ACTUALS.totalSpend / data.totalOrders,
+        roas: data.totalRevenue / CAMPAIGN_ACTUALS.totalSpend,
+      }
+    }
+    return CAMPAIGN_ACTUALS
+  }, [customData.allTimeOrders, customData.dailyOrders])
 
   // Handle data upload
   const handleDataUpload = useCallback((type, data) => {
@@ -3172,6 +3579,8 @@ function App() {
       adsets: null,
       geo: null,
       sales: null,
+      dailyOrders: null,
+      allTimeOrders: null,
     })
   }, [])
 
@@ -3338,8 +3747,26 @@ function App() {
               <p className="text-caption text-gray-400 flex items-center gap-2">
                 Campaign Analytics Dashboard
                 {hasCustomData && (
-                  <span className="px-2 py-0.5 bg-purple-900/50 text-purple-300 text-xs rounded-full">
-                    Custom Data Loaded
+                  <span
+                    className="px-2 py-0.5 bg-purple-900/50 text-purple-300 text-xs rounded-full flex items-center gap-1 cursor-help"
+                    title={(() => {
+                      const files = []
+                      if (customData.allTimeOrders?.fileName) files.push(customData.allTimeOrders.fileName)
+                      if (customData.dailyOrders?.fileName) files.push(customData.dailyOrders.fileName)
+                      return files.length > 0 ? `Loaded: ${files.join(', ')}` : 'Custom data loaded'
+                    })()}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {(() => {
+                      const exportDate = customData.allTimeOrders?.exportDate || customData.dailyOrders?.exportDate
+                      if (exportDate) {
+                        const [y, m, d] = exportDate.split('-')
+                        return `Data as of ${d}.${m}.${y.slice(2)}`
+                      }
+                      return 'Custom Data Loaded'
+                    })()}
                   </span>
                 )}
               </p>
@@ -3470,6 +3897,7 @@ function App() {
               filteredMetrics={filteredMetrics}
               geoCountries={geoData.countries}
               dateLabel={dateLabel}
+              isAllTime={datePreset === 'max'}
             />
             {/* AI-Powered Anomaly Detection */}
             <div className="max-w-[1440px] mx-auto px-4 sm:px-6 mt-6">
@@ -3529,7 +3957,18 @@ function App() {
 
       {/* Footer */}
       <footer className="text-center py-6 text-gray-500 text-xs border-t border-[#1e3a5f]">
-        <p>Data as of January 6, 2026 | Event: Jan 23-26, 2026 | Cafe del Mar, Phuket</p>
+        <p>
+          {(() => {
+            const exportDate = customData.allTimeOrders?.exportDate || customData.dailyOrders?.exportDate
+            if (exportDate) {
+              const date = new Date(exportDate)
+              const formatted = date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+              return `Data as of ${formatted}`
+            }
+            return 'Data as of January 6, 2026'
+          })()}
+          {' | Event: Jan 23-26, 2026 | Cafe del Mar, Phuket'}
+        </p>
         <p className="mt-1">
           Meta purchases may differ from actual Skiddle sales |
           Press <kbd className="px-1 py-0.5 bg-[#1a2744] rounded text-xs mx-1">?</kbd> for keyboard shortcuts
@@ -3544,11 +3983,15 @@ function App() {
         )}
       </footer>
 
+      {/* Toast Notification */}
+      <Toast toast={toast} onDismiss={() => setToast(null)} />
+
       {/* Modals */}
       <DataUploadModal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onDataUpload={handleDataUpload}
+        onShowToast={setToast}
       />
 
       <KeyboardShortcutsModal
@@ -3557,85 +4000,88 @@ function App() {
       />
 
       {/* AI-Powered Feature Modals */}
-      <AICopilot
-        isOpen={showAICopilot}
-        onClose={() => setShowAICopilot(false)}
-        metrics={mergedDailyMetrics}
-        creatives={creativeData.creatives}
-      />
+      {showAICopilot && (
+        <AICopilot
+          isOpen={showAICopilot}
+          onClose={() => setShowAICopilot(false)}
+          metrics={mergedDailyMetrics}
+          creatives={creativeData.creatives}
+          adSets={adSetData.adSets}
+          geoData={geoData}
+        />
+      )}
 
-      <ExecutiveSummary
-        isOpen={showExecutiveSummary}
-        onClose={() => setShowExecutiveSummary(false)}
-        metrics={mergedDailyMetrics}
-        totals={filteredTotals}
-      />
+      {showExecutiveSummary && (
+        <ExecutiveSummary
+          metrics={mergedDailyMetrics}
+          creatives={creativeData.creatives}
+          geoData={geoData}
+          onClose={() => setShowExecutiveSummary(false)}
+        />
+      )}
 
-      <WhatIfSimulator
-        isOpen={showWhatIfSimulator}
-        onClose={() => setShowWhatIfSimulator(false)}
-      />
+      {showWhatIfSimulator && (
+        <WhatIfSimulator
+          metrics={mergedDailyMetrics}
+          onClose={() => setShowWhatIfSimulator(false)}
+        />
+      )}
 
-      {/* Onboarding Overlay */}
+      {/* Onboarding Overlay - Centered Modal */}
       {showOnboarding && (
-        <div className="fixed inset-0 z-50 pointer-events-none">
-          <div className="pointer-events-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-[#0f1729] rounded-2xl border border-purple-600 shadow-2xl w-full max-w-md mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm text-purple-400">Step {onboardingStep} of 4</span>
+              <button onClick={handleSkipOnboarding} className="text-sm text-gray-400 hover:text-white">
+                Skip tour
+              </button>
+            </div>
+
             {onboardingStep === 1 && (
-              <div className="fixed top-24 left-1/2 -translate-x-1/2">
-                <OnboardingTooltip
-                  step={1}
-                  totalSteps={4}
-                  title="Welcome to DNBA Analytics"
-                  description="This dashboard shows your campaign performance with TRUE CPA and ROAS based on actual Skiddle sales data."
-                  position="bottom"
-                  onNext={handleNextOnboarding}
-                  onSkip={handleSkipOnboarding}
-                  onComplete={handleCompleteOnboarding}
-                />
-              </div>
+              <>
+                <h3 className="text-xl font-bold mb-2">Welcome to DNBA Analytics</h3>
+                <p className="text-gray-300 mb-4">This dashboard shows your campaign performance with TRUE CPA and ROAS based on actual Skiddle sales data.</p>
+              </>
             )}
             {onboardingStep === 2 && (
-              <div className="fixed top-24 right-20">
-                <OnboardingTooltip
-                  step={2}
-                  totalSteps={4}
-                  title="Upload Your Own Data"
-                  description="Click the upload icon to drag & drop your own JSON data files and instantly update the dashboard."
-                  position="bottom"
-                  onNext={handleNextOnboarding}
-                  onSkip={handleSkipOnboarding}
-                  onComplete={handleCompleteOnboarding}
-                />
-              </div>
+              <>
+                <h3 className="text-xl font-bold mb-2">Upload Your Own Data</h3>
+                <p className="text-gray-300 mb-4">Click the upload icon in the header to drag & drop your own JSON data files and instantly update the dashboard.</p>
+              </>
             )}
             {onboardingStep === 3 && (
-              <div className="fixed top-24 right-10">
-                <OnboardingTooltip
-                  step={3}
-                  totalSteps={4}
-                  title="Export & Shortcuts"
-                  description="Export any view to CSV, toggle dark/light mode, and use keyboard shortcuts for power-user navigation."
-                  position="bottom"
-                  onNext={handleNextOnboarding}
-                  onSkip={handleSkipOnboarding}
-                  onComplete={handleCompleteOnboarding}
-                />
-              </div>
+              <>
+                <h3 className="text-xl font-bold mb-2">AI-Powered Features</h3>
+                <p className="text-gray-300 mb-4">Use the purple AI buttons in the header: Copilot (A), Executive Summary (S), and What-If Simulator (W).</p>
+              </>
             )}
             {onboardingStep === 4 && (
-              <div className="fixed top-36 left-1/2 -translate-x-1/2">
-                <OnboardingTooltip
-                  step={4}
-                  totalSteps={4}
-                  title="Explore the Tabs"
-                  description="Use number keys 1-8 to quickly switch between tabs. Press ? anytime to see all keyboard shortcuts."
-                  position="bottom"
-                  onNext={handleNextOnboarding}
-                  onSkip={handleSkipOnboarding}
-                  onComplete={handleCompleteOnboarding}
-                />
-              </div>
+              <>
+                <h3 className="text-xl font-bold mb-2">Keyboard Shortcuts</h3>
+                <p className="text-gray-300 mb-4">Press 1-8 to switch tabs, ? for all shortcuts. Export any view to CSV with the E key.</p>
+              </>
             )}
+
+            <div className="flex items-center justify-between mt-6">
+              <div className="flex gap-2">
+                {[1, 2, 3, 4].map((i) => (
+                  <button
+                    key={i}
+                    onClick={() => setOnboardingStep(i)}
+                    className={`w-3 h-3 rounded-full transition-colors ${
+                      i === onboardingStep ? 'bg-purple-500' : 'bg-gray-600 hover:bg-gray-500'
+                    }`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={onboardingStep === 4 ? handleCompleteOnboarding : handleNextOnboarding}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors"
+              >
+                {onboardingStep === 4 ? 'Get Started' : 'Next'}
+              </button>
+            </div>
           </div>
         </div>
       )}
