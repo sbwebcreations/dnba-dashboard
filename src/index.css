@@ -1,23 +1,314 @@
+/* Import Inter font - World-class typography - MUST be first */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --color-bg-primary: #030712;
+  --color-bg-secondary: #0f1729;
+  --color-bg-tertiary: #1a2744;
+  --color-border: #1e3a5f;
+  --color-border-hover: #2d4a6f;
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 350ms ease;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+  --shadow-glow-purple: 0 0 20px rgba(139, 92, 246, 0.3);
+  --shadow-glow-green: 0 0 20px rgba(34, 197, 94, 0.3);
 }
 
+/* Base styles */
 body {
   margin: 0;
-  background: #030712;
+  background: var(--color-bg-primary);
   color: #f8fafc;
   min-height: 100vh;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
+/* Typography Scale (8px base) */
+.text-display { font-size: 3rem; line-height: 1.1; font-weight: 800; letter-spacing: -0.02em; }
+.text-h1 { font-size: 2rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.01em; }
+.text-h2 { font-size: 1.5rem; line-height: 1.3; font-weight: 600; }
+.text-h3 { font-size: 1.125rem; line-height: 1.4; font-weight: 600; }
+.text-body { font-size: 0.875rem; line-height: 1.5; font-weight: 400; }
+.text-caption { font-size: 0.75rem; line-height: 1.4; font-weight: 500; }
+.text-micro { font-size: 0.625rem; line-height: 1.4; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+
+/* Gradient text */
 .gradient-text {
-  background: linear-gradient(to right, #a855f7, #ec4899);
+  background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #f97316 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+}
+
+/* Card styles with depth */
+.card {
+  background: linear-gradient(180deg, var(--color-bg-secondary) 0%, rgba(15, 23, 41, 0.8) 100%);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  transition: all var(--transition-normal);
+}
+
+.card:hover {
+  border-color: var(--color-border-hover);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.card-elevated {
+  background: linear-gradient(180deg, #1a2744 0%, var(--color-bg-secondary) 100%);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Button styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 8px;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+  border: none;
+  outline: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  box-shadow: var(--shadow-sm), var(--shadow-glow-purple);
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #9d6ff8 0%, #8b5cf6 100%);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md), var(--shadow-glow-purple);
+}
+
+.btn-secondary {
+  background: var(--color-bg-tertiary);
+  color: #94a3b8;
+  border: 1px solid var(--color-border);
+}
+
+.btn-secondary:hover {
+  background: var(--color-border);
+  color: white;
+}
+
+/* KPI Card animations */
+.kpi-card {
+  position: relative;
+  overflow: hidden;
+  transition: all var(--transition-normal);
+}
+
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.kpi-card:hover::before {
+  opacity: 0.5;
+}
+
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Success state glow */
+.kpi-success {
+  border-color: rgba(34, 197, 94, 0.5);
+  box-shadow: var(--shadow-md), 0 0 30px rgba(34, 197, 94, 0.15);
+}
+
+.kpi-warning {
+  border-color: rgba(245, 158, 11, 0.5);
+  box-shadow: var(--shadow-md), 0 0 30px rgba(245, 158, 11, 0.15);
+}
+
+.kpi-danger {
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: var(--shadow-md), 0 0 30px rgba(239, 68, 68, 0.15);
+}
+
+/* Tab navigation */
+.tab {
+  position: relative;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  color: #94a3b8;
+  border-radius: 8px;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: white;
+  background: var(--color-bg-tertiary);
+}
+
+.tab.active {
+  color: white;
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  box-shadow: var(--shadow-sm);
+}
+
+.tab:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
+}
+
+/* Smooth number transitions */
+.number-transition {
+  transition: all var(--transition-slow);
+}
+
+/* Pulse animation for alerts */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
+  50% { opacity: 0.8; box-shadow: 0 0 0 4px transparent; }
+}
+
+.pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Skeleton loading */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: 4px;
+}
+
+/* Chart container hover effect */
+.chart-container {
+  transition: all var(--transition-normal);
+}
+
+.chart-container:hover {
+  transform: scale(1.005);
+}
+
+/* Table row hover */
+.table-row {
+  transition: all var(--transition-fast);
+}
+
+.table-row:hover {
+  background: var(--color-bg-tertiary) !important;
+}
+
+/* Status badges with animation */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 9999px;
+  transition: all var(--transition-fast);
+}
+
+.badge-success {
+  background: rgba(34, 197, 94, 0.15);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.badge-warning {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Progress bar */
+.progress-bar {
+  height: 6px;
+  background: var(--color-bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width var(--transition-slow);
+}
+
+/* Tooltip enhancement */
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  padding: 0.5rem 0.75rem;
+  background: #1f2937;
+  color: white;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-lg);
+  z-index: 50;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(-4px);
+}
+
+/* Focus states for accessibility */
+*:focus-visible {
+  outline: 2px solid #8b5cf6;
+  outline-offset: 2px;
 }
 
 /* Custom scrollbar */
@@ -27,29 +318,114 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: #0f1729;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #1e3a5f;
+  background: var(--color-bg-secondary);
   border-radius: 4px;
 }
 
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 4px;
+  transition: background var(--transition-fast);
+}
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #2d4a6f;
+  background: var(--color-border-hover);
 }
 
 /* Recharts custom styling */
 .recharts-default-tooltip {
   background: #1F2937 !important;
-  border: 1px solid #1e3a5f !important;
+  border: 1px solid var(--color-border) !important;
   border-radius: 8px !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 12px !important;
 }
 
 .recharts-tooltip-label {
   color: #f8fafc !important;
+  font-weight: 600 !important;
+  margin-bottom: 4px !important;
 }
 
 .recharts-tooltip-item {
   color: #94a3b8 !important;
+  font-size: 0.875rem !important;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 768px) {
+  .text-display { font-size: 2rem; }
+  .text-h1 { font-size: 1.5rem; }
+  .text-h2 { font-size: 1.25rem; }
+
+  .kpi-card:hover {
+    transform: none;
+  }
+}
+
+/* Reduced motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Print styles */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+
+  .card {
+    border: 1px solid #e5e7eb;
+    box-shadow: none;
+  }
+}
+
+/* Hide scrollbar but keep functionality */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Glassmorphism effect */
+.glass {
+  background: rgba(15, 23, 41, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gradient borders */
+.gradient-border {
+  position: relative;
+  background: var(--color-bg-secondary);
+  border-radius: 12px;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  padding: 1px;
+  background: linear-gradient(135deg, #8b5cf6, #ec4899, #f97316);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.5;
+  transition: opacity var(--transition-normal);
+}
+
+.gradient-border:hover::before {
+  opacity: 1;
 }
