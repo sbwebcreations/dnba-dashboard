@@ -2,3 +2,8 @@ node_modules/
 dist/
 .DS_Store
 *.local
+
+# Uploaded data files (processed by merge script)
+uploads/*
+uploads/processed/*
+!uploads/.gitkeep

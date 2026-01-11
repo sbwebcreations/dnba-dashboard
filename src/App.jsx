@@ -550,6 +550,24 @@ function DataUploadModal({ isOpen, onClose, onDataUpload, onShowToast }) {
               </div>
             </div>
           </div>
+
+          {/* Permanent Storage Info */}
+          <div className="mt-4 p-4 bg-gradient-to-r from-purple-900/20 to-blue-900/20 border border-purple-700/30 rounded-lg">
+            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+              <span className="text-purple-400">💾</span> Permanent Data Storage
+            </h4>
+            <p className="text-xs text-gray-400 mb-2">
+              Uploads here are temporary (preview only). For permanent storage that persists and merges with existing data:
+            </p>
+            <ol className="text-xs text-gray-400 space-y-1 list-decimal list-inside">
+              <li>Drop files into the <code className="text-cyan-400">uploads/</code> folder</li>
+              <li>Run <code className="text-green-400 bg-[#0f1729] px-1.5 py-0.5 rounded">npm run merge</code> in terminal</li>
+              <li>New records are added, duplicates ignored automatically</li>
+            </ol>
+            <p className="text-xs text-gray-500 mt-2 italic">
+              Use <code className="text-yellow-400">npm run merge:dry</code> to preview changes first
+            </p>
+          </div>
         </div>
       </div>
     </div>
