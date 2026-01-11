@@ -302,9 +302,13 @@ function mergeData(existing, newData, dataType) {
   // Merge and sort
   const mergedItems = [...existingItems, ...addedItems]
 
-  // Sort by date if applicable
+  // Sort by date if applicable (safely handle missing dates)
   if (mergedItems[0] && mergedItems[0].date) {
-    mergedItems.sort((a, b) => a.date.localeCompare(b.date))
+    mergedItems.sort((a, b) => {
+      const dateA = a.date || ''
+      const dateB = b.date || ''
+      return dateA.localeCompare(dateB)
+    })
   }
 
   return {
