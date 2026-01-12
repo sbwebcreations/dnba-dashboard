@@ -213,6 +213,235 @@ function convertToSalesFormat(rows) {
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
+// Helper to parse Excel date serial number
+function parseExcelDate(value) {
+  if (!value) return null
+  if (typeof value === 'number') {
+    // Excel serial date
+    const excelEpoch = new Date(1899, 11, 30)
+    const date = new Date(excelEpoch.getTime() + value * 86400000)
+    return date.toISOString().split('T')[0]
+  }
+  if (typeof value === 'string') {
+    // Try parsing as date string
+    const parsed = new Date(value)
+    if (!isNaN(parsed.getTime())) {
+      return parsed.toISOString().split('T')[0]
+    }
+  }
+  return null
+}
+
+// Helper to get numeric value from Meta export field
+function getNum(row, ...keys) {
+  for (const key of keys) {
+    const val = row[key]
+    if (val !== undefined && val !== '' && val !== null) {
+      const num = parseFloat(val)
+      if (!isNaN(num)) return num
+    }
+  }
+  return 0
+}
+
+// Check if data looks like a Meta Ads export
+function isMetaExport(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return false
+  const firstRow = rows[0]
+  // Meta exports have these characteristic fields
+  return firstRow['Day'] !== undefined ||
+         firstRow['Amount spent (GBP)'] !== undefined ||
+         firstRow['Amount spent (USD)'] !== undefined ||
+         (firstRow['Impressions'] !== undefined && firstRow['Ad name'] !== undefined)
+}
+
+// Convert Meta Ads daily export to dashboard dailyPerformance format
+function convertMetaToDailyFormat(rows) {
+  const byDate = {}
+
+  rows.forEach(row => {
+    // Get date from various possible fields
+    const dateRaw = row['Day'] || row['Date'] || row['Reporting starts']
+    const dateStr = parseExcelDate(dateRaw)
+    if (!dateStr) return
+
+    if (!byDate[dateStr]) {
+      byDate[dateStr] = {
+        date: dateStr,
+        spend: 0,
+        impressions: 0,
+        reach: 0,
+        clicks: 0,
+        landingPageViews: 0,
+        addToCart: 0,
+        checkoutsInitiated: 0,
+        purchases: 0,
+        videoPlays25: 0,
+        videoPlays75: 0,
+        thruPlays: 0,
+        _cpaSum: 0,
+        _cpaCount: 0,
+      }
+    }
+
+    const d = byDate[dateStr]
+    d.spend += getNum(row, 'Amount spent (GBP)', 'Amount spent (USD)', 'Amount spent', 'Spend')
+    d.impressions += getNum(row, 'Impressions')
+    d.reach += getNum(row, 'Reach')
+    d.clicks += getNum(row, 'Link clicks', 'Clicks', 'Clicks (all)')
+    d.landingPageViews += getNum(row, 'Landing page views')
+    d.addToCart += getNum(row, 'Adds to cart', 'Add to cart')
+    d.checkoutsInitiated += getNum(row, 'Checkouts initiated', 'Initiate checkout')
+    d.purchases += getNum(row, 'Purchases', 'Purchase')
+    d.videoPlays25 += getNum(row, 'Video plays at 25%')
+    d.videoPlays75 += getNum(row, 'Video plays at 75%')
+    d.thruPlays += getNum(row, 'ThruPlays', 'Thruplay')
+
+    // Track CPA for averaging
+    const cpa = getNum(row, 'Cost per purchase', 'Cost per result')
+    if (cpa > 0) {
+      d._cpaSum += cpa
+      d._cpaCount += 1
+    }
+  })
+
+  // Calculate derived metrics
+  return Object.values(byDate).map(d => {
+    const spend = Math.round(d.spend * 100) / 100
+    const cpa = d.purchases > 0 ? Math.round((spend / d.purchases) * 100) / 100 : 0
+    const ctr = d.impressions > 0 ? Math.round((d.clicks / d.impressions) * 100000) / 1000 : 0
+    const cpc = d.clicks > 0 ? Math.round((spend / d.clicks) * 100) / 100 : 0
+    const cpm = d.impressions > 0 ? Math.round((spend / d.impressions * 1000) * 100) / 100 : 0
+
+    return {
+      date: d.date,
+      spend,
+      impressions: d.impressions,
+      reach: d.reach,
+      clicks: d.clicks,
+      landingPageViews: d.landingPageViews,
+      addToCart: d.addToCart,
+      checkoutsInitiated: d.checkoutsInitiated,
+      purchases: d.purchases,
+      cpa,
+      ctr,
+      cpc,
+      cpm,
+      videoPlays25: d.videoPlays25,
+      videoPlays75: d.videoPlays75,
+      thruPlays: d.thruPlays,
+    }
+  }).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+// Convert Meta Ads ad set export to dashboard adSetPerformance format
+function convertMetaToAdSetFormat(rows) {
+  const byAdSet = {}
+
+  rows.forEach(row => {
+    const adSetName = row['Ad set name'] || row['AdSet Name'] || row['Ad Set']
+    if (!adSetName) return
+
+    if (!byAdSet[adSetName]) {
+      byAdSet[adSetName] = {
+        adSetName,
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        purchases: 0,
+      }
+    }
+
+    const d = byAdSet[adSetName]
+    d.spend += getNum(row, 'Amount spent (GBP)', 'Amount spent (USD)', 'Amount spent', 'Spend')
+    d.impressions += getNum(row, 'Impressions')
+    d.clicks += getNum(row, 'Link clicks', 'Clicks', 'Clicks (all)')
+    d.purchases += getNum(row, 'Purchases', 'Purchase')
+  })
+
+  return Object.values(byAdSet).map(d => {
+    const spend = Math.round(d.spend * 100) / 100
+    const cpa = d.purchases > 0 ? Math.round((spend / d.purchases) * 100) / 100 : 0
+    const ctr = d.impressions > 0 ? Math.round((d.clicks / d.impressions) * 100000) / 1000 : 0
+
+    // Try to detect temperature and geo from ad set name
+    const nameLower = d.adSetName.toLowerCase()
+    const temperature = nameLower.includes('warm') ? 'Warm' : nameLower.includes('cold') ? 'Cold' : nameLower.includes('hot') ? 'Hot' : 'Unknown'
+    const geo = nameLower.includes('uk |') ? 'UK' : nameLower.includes('eu |') ? 'EU' : nameLower.includes('aus') || nameLower.includes('nz') ? 'Mixed' : nameLower.includes('th |') ? 'TH' : 'Unknown'
+
+    return {
+      adSetName: d.adSetName,
+      spend,
+      impressions: d.impressions,
+      clicks: d.clicks,
+      purchases: d.purchases,
+      cpa,
+      ctr,
+      temperature,
+      geo,
+    }
+  }).sort((a, b) => b.spend - a.spend) // Sort by spend descending
+}
+
+// Convert Meta Ads platform export to dashboard platformPerformance format
+function convertMetaToPlatformFormat(rows) {
+  const byDatePlatform = {}
+
+  rows.forEach(row => {
+    const dateRaw = row['Day'] || row['Date'] || row['Reporting starts']
+    const dateStr = parseExcelDate(dateRaw)
+    const platform = (row['Publisher platform'] || row['Platform'] || row['Placement'] || '').toLowerCase()
+
+    if (!dateStr || !platform) return
+
+    // Normalize platform names
+    let normalizedPlatform = platform
+    if (platform.includes('facebook')) normalizedPlatform = 'facebook'
+    else if (platform.includes('instagram')) normalizedPlatform = 'instagram'
+    else if (platform.includes('messenger')) normalizedPlatform = 'messenger'
+    else if (platform.includes('audience')) normalizedPlatform = 'audience_network'
+
+    const key = `${dateStr}|${normalizedPlatform}`
+
+    if (!byDatePlatform[key]) {
+      byDatePlatform[key] = {
+        date: dateStr,
+        platform: normalizedPlatform,
+        spend: 0,
+        impressions: 0,
+        clicks: 0,
+        landingPageViews: 0,
+        purchases: 0,
+      }
+    }
+
+    const d = byDatePlatform[key]
+    d.spend += getNum(row, 'Amount spent (GBP)', 'Amount spent (USD)', 'Amount spent', 'Spend')
+    d.impressions += getNum(row, 'Impressions')
+    d.clicks += getNum(row, 'Link clicks', 'Clicks', 'Clicks (all)')
+    d.landingPageViews += getNum(row, 'Landing page views')
+    d.purchases += getNum(row, 'Purchases', 'Purchase')
+  })
+
+  return Object.values(byDatePlatform).map(d => {
+    const spend = Math.round(d.spend * 100) / 100
+    const cpa = d.purchases > 0 ? Math.round((spend / d.purchases) * 100) / 100 : 0
+    const ctr = d.impressions > 0 ? Math.round((d.clicks / d.impressions) * 100000) / 1000 : 0
+
+    return {
+      date: d.date,
+      platform: d.platform,
+      spend,
+      impressions: d.impressions,
+      clicks: d.clicks,
+      landingPageViews: d.landingPageViews,
+      purchases: d.purchases,
+      cpa,
+      ctr,
+    }
+  }).sort((a, b) => a.date.localeCompare(b.date) || a.platform.localeCompare(b.platform))
+}
+
 // Read and parse uploaded file
 function readUploadedFile(filepath) {
   const ext = path.extname(filepath).toLowerCase()
@@ -268,6 +497,22 @@ function mergeData(existing, newData, dataType) {
   // Special handling for sales CSV data
   if (dataType === 'actualSales' && Array.isArray(newData) && newData.length > 0 && !newData[0].orders) {
     newItems = convertToSalesFormat(newData)
+  }
+
+  // Special handling for Meta Ads exports - transform to dashboard format
+  if (Array.isArray(newItems) && newItems.length > 0 && isMetaExport(newItems)) {
+    log(`  Detected Meta Ads export format, transforming...`, 'cyan')
+
+    if (dataType === 'dailyPerformance') {
+      newItems = convertMetaToDailyFormat(newItems)
+      log(`  Aggregated to ${newItems.length} daily records`, 'dim')
+    } else if (dataType === 'adSetPerformance') {
+      newItems = convertMetaToAdSetFormat(newItems)
+      log(`  Aggregated to ${newItems.length} ad sets`, 'dim')
+    } else if (dataType === 'platformPerformance') {
+      newItems = convertMetaToPlatformFormat(newItems)
+      log(`  Aggregated to ${newItems.length} platform-day records`, 'dim')
+    }
   }
 
   if (!Array.isArray(newItems)) {

@@ -1,6 +1,6 @@
 {
   "description": "Performance by Ad Set (audience/targeting)",
-  "lastUpdated": "2026-01-06",
+  "lastUpdated": "2026-01-12",
   "adSets": [
     {
       "adSetName": "UK | Warm | Engagers/Data | 18-35",
@@ -114,7 +114,7 @@
     },
     {
       "adSetName": "ALL | Warm | Engagers/Data | 18-35",
-      "spend": 500.0,
+      "spend": 500,
       "impressions": 176346,
       "clicks": 2949,
       "purchases": 94,
@@ -125,7 +125,7 @@
     },
     {
       "adSetName": "MIX | Cold | DnB x Travel | 18-35",
-      "spend": 250.0,
+      "spend": 250,
       "impressions": 229788,
       "clicks": 11,
       "purchases": 0,
@@ -136,7 +136,7 @@
     },
     {
       "adSetName": "MIX | Warm | Engagers/Data | 18-35",
-      "spend": 250.0,
+      "spend": 250,
       "impressions": 172406,
       "clicks": 362,
       "purchases": 4,
@@ -209,6 +209,50 @@
       "cpa": 0,
       "ctr": 1.004,
       "temperature": "Hot",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "UK AUS NZ | RETARGET | ADV+",
+      "spend": 949.37,
+      "impressions": 258059,
+      "clicks": 1974,
+      "purchases": 13,
+      "cpa": 73.03,
+      "ctr": 0.765,
+      "temperature": "Unknown",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "TH | WARM | RET",
+      "spend": 850.08,
+      "impressions": 273110,
+      "clicks": 1586,
+      "purchases": 7,
+      "cpa": 121.44,
+      "ctr": 0.581,
+      "temperature": "Warm",
+      "geo": "TH"
+    },
+    {
+      "adSetName": "UK AUS NZ | RETARGET | ADV+ – Copy 2",
+      "spend": 399.97,
+      "impressions": 110330,
+      "clicks": 1559,
+      "purchases": 3,
+      "cpa": 133.32,
+      "ctr": 1.413,
+      "temperature": "Unknown",
+      "geo": "Mixed"
+    },
+    {
+      "adSetName": "AUS NZ BALI | WARM | RET",
+      "spend": 21.93,
+      "impressions": 5026,
+      "clicks": 68,
+      "purchases": 0,
+      "cpa": 0,
+      "ctr": 1.353,
+      "temperature": "Warm",
       "geo": "Mixed"
     }
   ]
